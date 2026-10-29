@@ -29,7 +29,7 @@
   <main class="container">
     <section class="hero card glass">
       <div class="hero-left">
-        <p id="greeting" class="greeting" dir="rtl" lang="he"></p>
+        <p id="greeting" class="greeting"></p>
         <h1 id="place">Cambridge, MA</h1>
         <p id="local-time" class="muted"></p>
         <div class="now">
@@ -40,12 +40,36 @@
         <p id="now-range" class="muted"></p>
       </div>
       <div class="hero-right">
-        <div class="tip" id="wear-tip"></div>
         <div class="tip" id="fun-tip"></div>
       </div>
     </section>
 
     <section id="alerts" class="alerts"></section>
+
+    <section class="card glass walk">
+      <div class="section-head">
+        <h2>🚶‍♀️ Natali's morning walk with the baby</h2>
+        <span id="walk-when" class="pill"></span>
+      </div>
+      <div id="walk-summary" class="walk-summary"></div>
+      <div class="grid wear-grid">
+        <div class="wear-card"><h3>👩 You</h3><ul id="walk-me"></ul></div>
+        <div class="wear-card"><h3>👶 Baby in the thermal sleep sack</h3><ul id="walk-baby"></ul></div>
+      </div>
+    </section>
+
+    <section class="card glass">
+      <div class="section-head">
+        <h2>👕 What to wear today</h2>
+        <span id="wear-basis" class="muted small"></span>
+      </div>
+      <div id="wear-ice" class="ice-banner"></div>
+      <div class="grid wear-grid three">
+        <div class="wear-card"><h3>🧑 Adults (layers)</h3><ul id="wear-adult"></ul></div>
+        <div class="wear-card"><h3>🧒 Kids (age 9)</h3><ul id="wear-kids"></ul></div>
+        <div class="wear-card"><h3>👶 Baby (1 year)</h3><ul id="wear-baby"></ul></div>
+      </div>
+    </section>
 
     <section class="grid stats">
       <div class="card glass stat"><h3>Feels like</h3><p id="s-feels">--</p></div>
@@ -62,7 +86,7 @@
 
     <section class="card glass">
       <div class="section-head">
-        <h2>Next 24 hours</h2>
+        <h2>Hour by hour</h2>
         <div class="tabs" role="tablist">
           <button class="tab active" data-metric="temp">Temp</button>
           <button class="tab" data-metric="rain">Rain %</button>
@@ -70,14 +94,19 @@
         </div>
       </div>
       <div id="chart" class="chart"></div>
-      <div id="hourly" class="hourly"></div>
+      <div class="table-wrap"><table class="hour-table">
+        <thead><tr><th>Time</th><th></th><th>Temp</th><th>Feels</th><th>Rain</th><th>Wind</th><th class="hide-sm">Conditions</th></tr></thead>
+        <tbody id="hourly"></tbody>
+      </table></div>
+      <button id="more-hours" class="chip more">Show next 48 hours</button>
+    </section>
+
+    <section class="card glass">
+      <h2>📅 This week</h2>
+      <ul id="daily" class="daily"></ul>
     </section>
 
     <section class="grid two">
-      <div class="card glass">
-        <h2>7-day forecast</h2>
-        <ul id="daily" class="daily"></ul>
-      </div>
       <div class="card glass">
         <h2>Sun &amp; Moon</h2>
         <svg id="sun-arc" viewBox="0 0 300 140" class="sun-arc" aria-label="Sun position"></svg>
@@ -91,12 +120,11 @@
           <div><strong id="moon-name">--</strong><p class="muted small" id="moon-illum"></p></div>
         </div>
       </div>
-    </section>
-
-    <section class="card glass">
-      <h2>Cambridge activity planner</h2>
-      <p class="muted small">How good is right now for…</p>
-      <div id="activities" class="activities"></div>
+      <div class="card glass">
+        <h2>Cambridge activity planner</h2>
+        <p class="muted small">How good is right now for…</p>
+        <div id="activities" class="activities"></div>
+      </div>
     </section>
   </main>
 

@@ -2,7 +2,7 @@
 // Data from Open-Meteo (free, no API key). Values are fetched in metric
 // and converted for display, so switching units needs no new request.
 
-const USER_NAME = "נטלי";
+const USER_NAME = "Natali";
 const HOME = { name: "Cambridge, MA", lat: 42.3736, lon: -71.1097 };
 const REFRESH_MS = 10 * 60 * 1000;
 
@@ -11,6 +11,7 @@ const state = {
   unit: loadJSON("unit") || "F",
   theme: loadJSON("theme") || null,
   metric: "temp",
+  hours: 24,
   data: null,
   air: null,
 };
@@ -68,7 +69,7 @@ async function fetchWeather({ lat, lon }) {
   const params = new URLSearchParams({
     latitude: lat, longitude: lon, timezone: "auto", forecast_days: 7,
     current: "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m",
-    hourly: "temperature_2m,precipitation_probability,weather_code,is_day,wind_speed_10m,uv_index",
+    hourly: "temperature_2m,apparent_temperature,precipitation,snow_depth,soil_temperature_0cm,precipitation_probability,weather_code,is_day,wind_speed_10m,uv_index",
     daily: "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max",
   });
   const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
@@ -145,10 +146,11 @@ function render() {
   $("s-aqi").textContent = aqi != null ? Math.round(aqi) : "n/a";
   $("s-aqi-txt").textContent = aqi != null ? `${aqiText(aqi)} · PM2.5 ${state.air.current.pm2_5?.toFixed(1)} µg/m³` : "";
 
-  $("wear-tip").innerHTML = `👕 <strong>What to wear:</strong> ${wearTip(c, d)}`;
   $("fun-tip").innerHTML = `💡 ${funTip(c, d, hi)}`;
 
   renderAlerts(d, hi);
+  renderWear(d, hi);
+  renderWalk(d);
   renderHourly(d, hi);
   renderChart(d, hi);
   renderDaily(d);
@@ -164,12 +166,12 @@ function renderGreeting(c) {
   // Greeting follows the local time of the place being shown.
   const hour = Number(new Date().toLocaleString("en-US", { timeZone: state.data.timezone, hour: "numeric", hourCycle: "h23" }));
   const [hello, icon] =
-    hour >= 5 && hour < 12 ? ["בוקר טוב", "☀️"] :
-    hour >= 12 && hour < 17 ? ["צהריים טובים", "🌤️"] :
-    hour >= 17 && hour < 22 ? ["ערב טוב", "🌆"] : ["לילה טוב", "🌙"];
+    hour >= 5 && hour < 12 ? ["Good morning", "☀️"] :
+    hour >= 12 && hour < 17 ? ["Good afternoon", "🌤️"] :
+    hour >= 17 && hour < 22 ? ["Good evening", "🌆"] : ["Good night", "🌙"];
   const f = Math.round(c.temperature_2m * 9 / 5 + 32);
   const cel = Math.round(c.temperature_2m);
-  $("greeting").innerHTML = `${hello} ${USER_NAME}! ${icon}<span class="both">עכשיו <bdi>${f}°F</bdi> שזה <bdi>${cel}°C</bdi></span>`;
+  $("greeting").innerHTML = `${hello}, ${USER_NAME}! ${icon}<span class="both">It's ${f}°F (${cel}°C) in ${state.place.name} right now.</span>`;
 }
 
 function compassDir(deg) {
@@ -210,6 +212,203 @@ function funTip(c, d, hi) {
   return `Warmest in the next 24h: ${tempStr(temps[maxI])} around ${hourLabel(d.hourly.time[hi + maxI])}.`;
 }
 
+// ---------- what to wear ----------
+// Bands use "feels like" in °C: 0 extreme cold … 6 hot.
+function band(feelsC) {
+  return feelsC <= -10 ? 0 : feelsC <= 0 ? 1 : feelsC <= 7 ? 2 : feelsC <= 13 ? 3 : feelsC <= 18 ? 4 : feelsC <= 24 ? 5 : 6;
+}
+const ul = (items) => items.map((x) => `<li>${x}</li>`).join("");
+
+// Conditions for today's daytime (7am–7pm) or the rest of today if later.
+function dayConditions(d, hi) {
+  const today = d.hourly.time[hi].slice(0, 10);
+  let idx = d.hourly.time.map((t, i) => i).filter((i) => d.hourly.time[i].startsWith(today) && +d.hourly.time[i].slice(11, 13) >= 7 && +d.hourly.time[i].slice(11, 13) <= 19 && i >= hi);
+  if (!idx.length) idx = [hi, hi + 1, hi + 2].filter((i) => i < d.hourly.time.length);
+  return conditions(d, idx);
+}
+function dayIdxHours(d, hi) {
+  const today = d.hourly.time[hi].slice(0, 10);
+  const idx = [];
+  for (let i = hi; i < d.hourly.time.length && d.hourly.time[i].startsWith(today); i++) idx.push(i);
+  return idx.length ? idx : [hi];
+}
+function conditions(d, idx) {
+  const pick = (arr) => idx.map((i) => arr[i] ?? 0);
+  const codes = pick(d.hourly.weather_code);
+  return {
+    feelsMin: Math.min(...pick(d.hourly.apparent_temperature)),
+    feelsMax: Math.max(...pick(d.hourly.apparent_temperature)),
+    rain: Math.max(...pick(d.hourly.precipitation_probability)),
+    wind: Math.max(...pick(d.hourly.wind_speed_10m)),
+    uv: Math.max(...pick(d.hourly.uv_index)),
+    snow: codes.some((c) => kind(c) === "snow"),
+    wet: codes.some((c) => ["rain", "storm"].includes(kind(c))),
+  };
+}
+
+function adultWear(k) {
+  const b = band(k.feelsMin);
+  const layers = [
+    ["<b>Base:</b> thermal top + leggings", "<b>Mid:</b> wool or fleece sweater", "<b>Outer:</b> long down parka with a hood"],
+    ["<b>Base:</b> thermal or long-sleeve top", "<b>Mid:</b> fleece or wool sweater", "<b>Outer:</b> insulated winter coat"],
+    ["<b>Base:</b> long-sleeve top", "<b>Mid:</b> sweater or fleece", "<b>Outer:</b> warm puffer jacket"],
+    ["<b>Base:</b> long-sleeve top", "<b>Mid:</b> light sweater (easy to take off)", "<b>Outer:</b> light jacket or trench"],
+    ["T-shirt + a light layer (cardigan, denim or light jacket)", "Jeans or long pants"],
+    ["T-shirt, light pants or a skirt", "A light layer for the evening"],
+    ["Light, breathable clothes (cotton/linen), shorts or a dress", "Drink plenty of water"],
+  ][b];
+  const shoes = [
+    "<b>Shoes:</b> insulated waterproof winter boots + wool socks",
+    k.snow || k.wet ? "<b>Shoes:</b> waterproof winter boots + wool socks" : "<b>Shoes:</b> warm boots + wool socks",
+    k.snow ? "<b>Shoes:</b> waterproof snow boots" : k.wet ? "<b>Shoes:</b> waterproof boots" : "<b>Shoes:</b> ankle boots or warm sneakers",
+    k.wet ? "<b>Shoes:</b> waterproof boots or rain boots" : "<b>Shoes:</b> closed sneakers or ankle boots",
+    k.wet ? "<b>Shoes:</b> waterproof sneakers or rain boots" : "<b>Shoes:</b> sneakers",
+    k.wet ? "<b>Shoes:</b> closed shoes that can get wet" : "<b>Shoes:</b> sneakers or sandals",
+    "<b>Shoes:</b> sandals or breathable sneakers",
+  ][b];
+  const extra = [];
+  if (b <= 1) extra.push("<b>Accessories:</b> warm hat over the ears, insulated gloves, scarf or neck warmer");
+  else if (b === 2) extra.push("<b>Accessories:</b> light hat and gloves");
+  if (k.wet || k.rain >= 50) extra.push("☔ Waterproof shell or raincoat + umbrella");
+  if (k.wind >= 30) extra.push("💨 Windy — make the outer layer windproof");
+  if (k.uv >= 6) extra.push("🕶️ Sunglasses and sunscreen");
+  if (k.feelsMax - k.feelsMin >= 8) extra.push(`Big swing today (${tempStr(k.feelsMin)} → ${tempStr(k.feelsMax)}) — dress in layers you can remove`);
+  return [...layers, shoes, ...extra];
+}
+
+function kidsWear(k) {
+  const b = band(k.feelsMin);
+  const items = [
+    ["Thermal base layer under clothes", "Warm sweater or fleece", "Heavy winter coat" + (k.snow ? " + snow pants" : ""), "<b>Shoes:</b> insulated snow boots + wool socks", "Hat over the ears, waterproof mittens or gloves, neck warmer"],
+    ["Long-sleeve shirt + sweater or fleece", "Winter coat" + (k.snow ? " + snow pants for recess" : ""), "<b>Shoes:</b> " + (k.snow || k.wet ? "waterproof winter boots" : "warm boots") + " + warm socks", "Hat, gloves and a neck warmer"],
+    ["Long-sleeve shirt + hoodie or sweater", "Puffer jacket", "<b>Shoes:</b> " + (k.snow ? "snow boots" : k.wet ? "rain boots or waterproof sneakers" : "sneakers or boots"), "Light hat and gloves in the backpack"],
+    ["Long-sleeve shirt + light hoodie", "Light jacket", "<b>Shoes:</b> " + (k.wet ? "rain boots" : "sneakers")],
+    ["T-shirt + hoodie or light jacket", "Long pants", "<b>Shoes:</b> " + (k.wet ? "rain boots" : "sneakers")],
+    ["T-shirt, shorts or light pants", "<b>Shoes:</b> sneakers", "Water bottle"],
+    ["Light T-shirt and shorts", "<b>Shoes:</b> sneakers or sport sandals", "Hat, sunscreen and a water bottle"],
+  ][b].slice();
+  if (k.wet || k.rain >= 50) items.push("☔ Raincoat with a hood");
+  if (k.feelsMax - k.feelsMin >= 8) items.push("Pack an extra layer — it changes a lot during the day");
+  if (k.uv >= 6 && b < 6) items.push("🧴 Sunscreen before school");
+  return items;
+}
+
+function babyWear(k) {
+  const b = band(k.feelsMin);
+  const items = [
+    ["Keep time outside short", "Thermal long-sleeve bodysuit + leggings", "Fleece footed one-piece", "Insulated snowsuit (bunting)", "Warm hat covering the ears, mittens, warm booties"],
+    ["Long-sleeve bodysuit + leggings", "Fleece one-piece or sweater", "Snowsuit or puffer suit", "Warm hat over the ears, mittens", "<b>Shoes:</b> warm booties or insulated soft-soled shoes"],
+    ["Long-sleeve bodysuit + pants", "Sweater or fleece", "Puffer or fleece suit", "Warm hat and mittens", "<b>Shoes:</b> warm booties or soft-soled shoes + warm socks"],
+    ["Long-sleeve bodysuit + pants", "Light sweater or fleece jacket", "Light hat", "<b>Shoes:</b> socks + soft-soled shoes"],
+    ["Bodysuit + long-sleeve top and pants", "Light cardigan", "<b>Shoes:</b> socks + soft-soled shoes"],
+    ["Short-sleeve bodysuit + light pants", "Sun hat", "<b>Shoes:</b> light soft-soled shoes"],
+    ["Light cotton bodysuit only", "Sun hat, stay in the shade", "Offer water and milk often"],
+  ][b].slice();
+  if (k.wet || k.rain >= 50) items.push("☔ Stroller rain cover");
+  if (b <= 2) items.push("🚗 In the car seat: take off the puffy coat or snowsuit and put a blanket over the straps");
+  items.push("Rule of thumb: one more layer than you. Feel the back of the neck — warm and dry is right, sweaty means too many layers");
+  return items;
+}
+
+function renderWear(d, hi) {
+  const k = dayConditions(d, hi);
+  $("wear-basis").textContent = `Based on feels-like ${tempStr(k.feelsMin)}–${tempStr(k.feelsMax)}, ${k.rain}% chance of rain, wind up to ${speed(k.wind)}`;
+  const ice = iceRisk(d, dayIdxHours(d, hi));
+  const adult = adultWear(k), kids = kidsWear(k);
+  if (ice.cleats) {
+    adult.push("🧊 <b>Ice cleats (spikes) on boots</b> — " + ice.text.toLowerCase());
+    kids.push("🧊 Boots with good grip — icy sidewalks today");
+  }
+  $("wear-ice").innerHTML = iceLine(ice);
+  $("wear-ice").className = "ice-banner" + (ice.cleats ? " yes" : "");
+  $("wear-adult").innerHTML = ul(adult);
+  $("wear-kids").innerHTML = ul(kids);
+  $("wear-baby").innerHTML = ul(babyWear(k));
+}
+
+// ---------- ice ----------
+// Looks at the hours in `idx` plus the 12 hours before them (wet ground that freezes).
+function iceRisk(d, idx) {
+  const h = d.hourly;
+  const first = Math.max(0, Math.min(...idx) - 12);
+  const before = [];
+  for (let i = first; i <= Math.max(...idx); i++) before.push(i);
+  const val = (arr, i) => (arr && arr[i] != null ? arr[i] : null);
+  const air = idx.map((i) => h.temperature_2m[i]);
+  const ground = idx.map((i) => val(h.soil_temperature_0cm, i) ?? h.temperature_2m[i]);
+  const minT = Math.min(...air, ...ground);
+  const recentWet = before.some((i) => (val(h.precipitation, i) ?? 0) > 0.1);
+  const comingWet = idx.some((i) => (h.precipitation_probability[i] ?? 0) >= 50);
+  const snowOnGround = idx.some((i) => (val(h.snow_depth, i) ?? 0) > 0.005);
+  const freezingRain = before.some((i) => [56, 57, 66, 67].includes(h.weather_code[i]));
+  const thawRefreeze = snowOnGround && Math.max(...before.map((i) => h.temperature_2m[i])) > 1 && minT <= 0;
+
+  if (freezingRain) return { level: 3, cleats: true, text: "Freezing rain — sidewalks will be icy" };
+  if (minT <= 0 && (recentWet || comingWet)) return { level: 3, cleats: true, text: "Wet ground + below freezing — ice likely" };
+  if (thawRefreeze) return { level: 2, cleats: true, text: "Snow melted and is refreezing — icy patches likely" };
+  if (minT <= 0 && snowOnGround) return { level: 2, cleats: true, text: "Packed snow on the ground — slippery" };
+  if (minT <= 2 && recentWet) return { level: 1, cleats: false, text: "Near freezing after wet weather — watch for black ice on shady spots" };
+  if (minT <= 0) return { level: 1, cleats: false, text: "Below freezing but dry — ice unlikely" };
+  return { level: 0, cleats: false, text: "Above freezing — no ice" };
+}
+function iceLine(r) {
+  return r.cleats
+    ? `🧊 <b>Ice: YES — put the ice cleats (spikes) on your boots.</b> ${r.text}.`
+    : `✅ <b>Ice cleats: not needed.</b> ${r.text}.`;
+}
+
+// ---------- morning walk 6:30–7:30 ----------
+function renderWalk(d) {
+  const nowStr = d.current.time;
+  const useToday = nowStr.slice(11, 16) < "07:30";
+  const dayIdx = useToday ? 0 : 1;
+  const date = d.daily.time[dayIdx];
+  const idx = ["06", "07"].map((h) => d.hourly.time.indexOf(`${date}T${h}:00`)).filter((i) => i >= 0);
+  if (!idx.length) { $("walk-summary").textContent = "No forecast for the walk window yet."; return; }
+  const k = conditions(d, idx);
+  const temps = idx.map((i) => d.hourly.temperature_2m[i]);
+  const sunrise = d.daily.sunrise[dayIdx];
+  const dark = sunrise.slice(11, 16) > "06:30";
+  const b = band(k.feelsMin);
+  const w = wmo(d.hourly.weather_code[idx[0]], d.hourly.is_day[idx[0]]);
+
+  $("walk-when").textContent = `${useToday ? "This morning" : "Tomorrow"} · 6:30–7:30 AM`;
+  const chips = [
+    `${w.icon} ${w.text}`,
+    `🌡️ ${tempStr(Math.min(...temps))}–${tempStr(Math.max(...temps))}`,
+    `Feels like ${tempStr(k.feelsMin)}`,
+    `💧 ${k.rain}% rain`,
+    `💨 ${speed(k.wind)}`,
+    `🌅 Sunrise ${clockLabel(sunrise)}`,
+  ];
+  let summary = chips.map((x) => `<span>${x}</span>`).join("");
+  const ice = iceRisk(d, idx);
+  summary += `<span class="${ice.cleats ? "warn" : ""}">${iceLine(ice)}</span>`;
+  if (b === 0) summary += `<span class="warn">🥶 Very cold — keep the walk short (10–15 min) or walk later</span>`;
+  if (k.rain >= 60) summary += `<span class="warn">☔ Rain likely — bring the rain cover</span>`;
+  if (dark) summary += `<span class="warn">🌑 Still dark until ${clockLabel(sunrise)} — wear something reflective</span>`;
+  $("walk-summary").innerHTML = summary;
+
+  const me = adultWear(k).filter((x) => !x.startsWith("Big swing"));
+  if (b <= 2) me.push("🧤 Warm gloves or stroller hand muffs — hands on the handle get cold fast");
+  if (dark) me.push("🔦 Reflective vest or stroller light");
+  if (ice.cleats) me.push("🧊 <b>Ice cleats on your boots</b> — and push the stroller slowly, ice is worst on curb ramps and shady corners");
+  $("walk-me").innerHTML = ul(me);
+
+  const baby = [
+    ["<b>Inside the sack:</b> thermal long-sleeve bodysuit + fleece footed one-piece", "<b>Head:</b> warm knit hat over the ears + neck warmer or balaclava", "<b>Hands:</b> warm mittens", "<b>Feet:</b> warm socks + booties", "Close the sack fully and use the wind/rain cover to keep warmth in"],
+    ["<b>Inside the sack:</b> long-sleeve bodysuit + fleece footed one-piece", "<b>Head:</b> warm knit hat over the ears", "<b>Hands:</b> mittens", "<b>Feet:</b> warm socks or booties", "Wind cover on if it's breezy"],
+    ["<b>Inside the sack:</b> long-sleeve bodysuit + footed sleeper (or sweater + leggings)", "<b>Head:</b> warm hat over the ears", "<b>Hands:</b> mittens", "<b>Feet:</b> socks"],
+    ["<b>Inside the sack:</b> long-sleeve bodysuit + pants", "<b>Head:</b> light cotton hat", "<b>Hands:</b> mittens optional", "Sack can be partly unzipped if he gets warm"],
+    ["The thermal sack is probably too warm — use a light blanket instead", "Long-sleeve outfit + light hat"],
+    ["Skip the thermal sack — light outfit and a thin blanket", "Sun canopy up"],
+    ["Skip the thermal sack — light cotton only", "Canopy up, keep him in the shade"],
+  ][b].slice();
+  if (k.rain >= 50 || k.wet) baby.push("☔ Stroller rain cover");
+  baby.push("Don't stack a snowsuit inside the thermal sack unless it's extremely cold — check the neck for sweat");
+  $("walk-baby").innerHTML = ul(baby);
+}
+
 function renderAlerts(d, hi) {
   const out = [];
   const max = d.daily.temperature_2m_max[0], min = d.daily.temperature_2m_min[0];
@@ -219,19 +418,34 @@ function renderAlerts(d, hi) {
   if (d.daily.weather_code.slice(0, 2).some((x) => [95, 96, 99].includes(x))) out.push("⛈️ Thunderstorms possible in the next two days.");
   if (d.daily.weather_code.slice(0, 2).some((x) => [73, 75, 86].includes(x))) out.push("❄️ Significant snow possible in the next two days.");
   if (Math.max(...d.hourly.uv_index.slice(hi, hi + 12)) >= 8) out.push("🧴 Very high UV later today. Wear sunscreen.");
+  const ice = iceRisk(d, dayIdxHours(d, hi));
+  if (ice.cleats) out.unshift(`🧊 Icy sidewalks today — wear ice cleats. ${ice.text}.`);
   $("alerts").innerHTML = out.map((t) => `<div class="alert">${t}</div>`).join("");
 }
 
 function renderHourly(d, hi) {
   let html = "";
-  for (let i = hi; i < hi + 24 && i < d.hourly.time.length; i++) {
+  let lastDate = d.hourly.time[hi].slice(0, 10);
+  for (let i = hi; i < hi + state.hours && i < d.hourly.time.length; i++) {
+    const t = d.hourly.time[i];
+    if (t.slice(0, 10) !== lastDate) {
+      lastDate = t.slice(0, 10);
+      const label = parseLocal(lastDate + "T12:00").toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+      html += `<tr class="day-row"><td colspan="7">${label}</td></tr>`;
+    }
     const w = wmo(d.hourly.weather_code[i], d.hourly.is_day[i]);
     const p = d.hourly.precipitation_probability[i] ?? 0;
-    html += `<div class="hour"><div>${i === hi ? "Now" : hourLabel(d.hourly.time[i])}</div>
-      <span class="ic" title="${w.text}">${w.icon}</span><strong>${tempStr(d.hourly.temperature_2m[i])}</strong>
-      <div class="rain">${p >= 10 ? `💧${p}%` : "&nbsp;"}</div></div>`;
+    html += `<tr class="${i === hi ? "is-now" : ""}">
+      <td>${i === hi ? "<b>Now</b>" : hourLabel(t)}</td>
+      <td title="${w.text}">${w.icon}</td>
+      <td><b>${tempStr(d.hourly.temperature_2m[i])}</b></td>
+      <td>${tempStr(d.hourly.apparent_temperature[i])}</td>
+      <td class="${p >= 50 ? "rain-hi" : ""}">${p}%</td>
+      <td>${speed(d.hourly.wind_speed_10m[i])}</td>
+      <td class="hide-sm">${w.text}</td></tr>`;
   }
   $("hourly").innerHTML = html;
+  $("more-hours").textContent = state.hours === 24 ? "Show next 48 hours" : "Show next 24 hours only";
 }
 
 function renderChart(d, hi) {
@@ -277,13 +491,15 @@ function renderDaily(d) {
     const w = wmo(d.daily.weather_code[i]);
     const lo = d.daily.temperature_2m_min[i], hi = d.daily.temperature_2m_max[i];
     const p = d.daily.precipitation_probability_max[i] ?? 0;
-    const day = i === 0 ? "Today" : parseLocal(t + "T12:00").toLocaleDateString("en-US", { weekday: "short" });
+    const date = parseLocal(t + "T12:00");
+    const day = i === 0 ? "Today" : i === 1 ? "Tomorrow" : date.toLocaleDateString("en-US", { weekday: "long" });
+    const dateStr = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     return `<li data-i="${i}">
-      <span>${day}</span><span class="ic" title="${w.text}">${w.icon}</span>
+      <span class="day">${day}<small>${dateStr}</small></span><span class="ic" title="${w.text}">${w.icon}</span>
       <span class="lo">${tempStr(lo)}</span>
       <div class="range"><span style="left:${((lo - allLo) / span) * 100}%;width:${((hi - lo) / span) * 100}%"></span></div>
       <span class="hi">${tempStr(hi)}</span>
-      <div class="detail" hidden>${w.text} · 💧 ${p}% chance, ${precip(d.daily.precipitation_sum[i])} · 💨 up to ${speed(d.daily.wind_speed_10m_max[i])} · UV ${d.daily.uv_index_max[i]?.toFixed(0) ?? "-"}</div>
+      <div class="detail"><b>${w.text}</b> · 💧 ${p}% chance of ${kind(d.daily.weather_code[i]) === "snow" ? "snow" : "rain"}${d.daily.precipitation_sum[i] > 0.2 ? ` (${precip(d.daily.precipitation_sum[i])})` : ""} · 💨 up to ${speed(d.daily.wind_speed_10m_max[i])} · UV ${d.daily.uv_index_max[i]?.toFixed(0) ?? "-"} · 🌅 ${clockLabel(d.daily.sunrise[i])}</div>
     </li>`;
   }).join("");
 }
@@ -438,9 +654,9 @@ document.querySelectorAll(".tab").forEach((btn) => btn.addEventListener("click",
   if (state.data) renderChart(state.data, currentHourIndex(state.data));
 }));
 
-$("daily").addEventListener("click", (e) => {
-  const li = e.target.closest("li");
-  if (li) li.querySelector(".detail").hidden = !li.querySelector(".detail").hidden;
+$("more-hours").addEventListener("click", () => {
+  state.hours = state.hours === 24 ? 48 : 24;
+  if (state.data) renderHourly(state.data, currentHourIndex(state.data));
 });
 
 let searchTimer;
