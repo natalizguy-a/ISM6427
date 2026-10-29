@@ -26,6 +26,10 @@ function saveJSON(key, value) {
 const $ = (id) => document.getElementById(id);
 const temp = (c) => Math.round(state.unit === "F" ? c * 9 / 5 + 32 : c);
 const tempStr = (c) => `${temp(c)}°`;
+// Both scales, e.g. "41°F (5°C)".
+const toF = (c) => Math.round(c * 9 / 5 + 32);
+const bothStr = (c) => `${toF(c)}°F (${Math.round(c)}°C)`;
+const bothRange = (lo, hi) => `${toF(lo)}–${toF(hi)}°F (${Math.round(lo)}–${Math.round(hi)}°C)`;
 const speed = (kmh) => state.unit === "F" ? `${Math.round(kmh * 0.621371)} mph` : `${Math.round(kmh)} km/h`;
 const precip = (mm) => state.unit === "F" ? `${(mm / 25.4).toFixed(2)} in` : `${mm.toFixed(1)} mm`;
 const pad = (n) => String(n).padStart(2, "0");
@@ -375,8 +379,8 @@ function renderWalk(d) {
   $("walk-when").textContent = `${useToday ? "This morning" : "Tomorrow"} · 6:30–7:30 AM`;
   const chips = [
     `${w.icon} ${w.text}`,
-    `🌡️ ${tempStr(Math.min(...temps))}–${tempStr(Math.max(...temps))}`,
-    `Feels like ${tempStr(k.feelsMin)}`,
+    `🌡️ ${bothRange(Math.min(...temps), Math.max(...temps))}`,
+    `Feels like ${bothStr(k.feelsMin)}`,
     `💧 ${k.rain}% rain`,
     `💨 ${speed(k.wind)}`,
     `🌅 Sunrise ${clockLabel(sunrise)}`,
