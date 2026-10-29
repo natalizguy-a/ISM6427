@@ -200,3 +200,14 @@ h3 { margin: 0 0 6px; font-size: 0.8rem; text-transform: uppercase; letter-spaci
 .ice-banner.yes { background: rgba(56, 189, 248, 0.25); border: 1px solid rgba(56, 189, 248, 0.6); }
 .hour-table th:last-child, .hour-table td:last-child { width: 100%; }
 @media (max-width: 720px) { .hour-table td:nth-last-child(2), .hour-table th:nth-last-child(2) { width: 100%; } }
+
+/* special events */
+.event { border-radius: 16px; padding: 14px; background: rgba(127, 127, 127, 0.08); margin-top: 10px; }
+.event h3.event-title { font-size: 1.05rem; text-transform: none; letter-spacing: 0; color: var(--text); margin: 0 0 4px; }
+.event-windows { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 12px; margin-top: 10px; }
+.event-window { background: rgba(127, 127, 127, 0.1); border-radius: 14px; padding: 12px; }
+.event-window h4 { margin: 0 0 6px; font-size: 0.95rem; }
+.event-window .walk-summary { margin: 6px 0 8px; }
+.event-window ul { margin: 4px 0 0; padding-left: 18px; line-height: 1.45; }
+.event-window li { margin-bottom: 4px; }
+.event-window .who { font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-top: 10px; }

@@ -29,7 +29,8 @@ const tempStr = (c) => `${temp(c)}°`;
 // Both scales, e.g. "41°F (5°C)".
 const toF = (c) => Math.round(c * 9 / 5 + 32);
 const bothStr = (c) => `${toF(c)}°F (${Math.round(c)}°C)`;
-const bothRange = (lo, hi) => `${toF(lo)}–${toF(hi)}°F (${Math.round(lo)}–${Math.round(hi)}°C)`;
+const span2 = (a, b) => (a === b ? `${a}` : a < 0 || b < 0 ? `${a} to ${b}` : `${a}–${b}`);
+const bothRange = (lo, hi) => `${span2(toF(lo), toF(hi))}°F (${span2(Math.round(lo), Math.round(hi))}°C)`;
 const speed = (kmh) => state.unit === "F" ? `${Math.round(kmh * 0.621371)} mph` : `${Math.round(kmh)} km/h`;
 const precip = (mm) => state.unit === "F" ? `${(mm / 25.4).toFixed(2)} in` : `${mm.toFixed(1)} mm`;
 const pad = (n) => String(n).padStart(2, "0");
@@ -155,6 +156,7 @@ function render() {
   renderAlerts(d, hi);
   renderWear(d, hi);
   renderWalk(d);
+  renderEvents(d);
   renderHourly(d, hi);
   renderChart(d, hi);
   renderDaily(d);
@@ -359,6 +361,112 @@ function iceLine(r) {
   return r.cleats
     ? `🧊 <b>Ice: YES — put the ice cleats (spikes) on your boots.</b> ${r.text}.`
     : `✅ <b>Ice cleats: not needed.</b> ${r.text}.`;
+}
+
+// ---------- special events ----------
+const nthWeekday = (y, m, weekday, n) => { // m: 0-11, weekday: 0=Sun
+  const first = new Date(y, m, 1).getDay();
+  return new Date(y, m, 1 + ((weekday - first + 7) % 7) + (n - 1) * 7);
+};
+const EVENTS = [
+  { name: "Halloween", icon: "🎃", date: (y) => new Date(y, 9, 31), costume: true,
+    windows: [["Afternoon (parades & parties)", 12, 16], ["Trick-or-treating", 17, 20]] },
+  { name: "Thanksgiving", icon: "🦃", date: (y) => nthWeekday(y, 10, 4, 4),
+    windows: [["Morning walk / Turkey Trot", 8, 11], ["Evening", 17, 20]] },
+  { name: "Christmas Eve", icon: "🎄", date: (y) => new Date(y, 11, 24),
+    windows: [["Afternoon", 12, 16], ["Evening (lights & services)", 17, 21]] },
+  { name: "New Year's Eve", icon: "🎆", date: (y) => new Date(y, 11, 31),
+    windows: [["Evening (First Night Boston)", 18, 21], ["Midnight fireworks", 22, 23]] },
+  { name: "Boston Marathon", icon: "🏃", date: (y) => nthWeekday(y, 3, 1, 3),
+    windows: [["Watching the race", 9, 14]] },
+  { name: "Fourth of July", icon: "🇺🇸", date: (y) => new Date(y, 6, 4),
+    windows: [["Afternoon on the Esplanade", 13, 17], ["Fireworks", 20, 22]] },
+];
+const ymd = (dt) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+
+function costumeTips(k, dark, wet) {
+  const b = band(k.feelsMin);
+  const adult = [], kids = [], baby = [];
+  if (b <= 1) {
+    adult.push("<b>Under the costume:</b> thermal top + leggings", "<b>Over:</b> a warm coat — pick one that matches the costume colors, or make it part of the costume", "Warm hat under the hood/headpiece, gloves");
+    kids.push("<b>Under the costume:</b> thermal long-sleeve + leggings + warm socks (buy the costume a size up so it fits over)", "<b>Over:</b> winter coat — turn it into part of the costume (cape, ears on the hood)", "Gloves and a hat in costume colors", "<b>Shoes:</b> warm boots, not costume shoes");
+    baby.push("<b>Under:</b> fleece footed one-piece", "<b>Over:</b> a bunting-style (sack) costume, or the costume over the snowsuit", "Costume hat that covers the ears + mittens", "In the stroller: keep the thermal sack on, costume hat on top");
+  } else if (b === 2) {
+    adult.push("<b>Under the costume:</b> long-sleeve thermal top", "<b>Over:</b> a puffer or warm jacket you can take off indoors", "Light gloves");
+    kids.push("<b>Under the costume:</b> long-sleeve shirt + leggings (costume a size up)", "<b>Over:</b> a light puffer or fleece — easy to carry when they warm up", "<b>Shoes:</b> comfortable sneakers or boots for walking", "Light gloves");
+    baby.push("<b>Under:</b> long-sleeve bodysuit + leggings", "<b>Over:</b> a fleece costume, or costume over a fleece suit", "Warm hat (costume hat counts if it covers the ears) + mittens", "Thermal sack in the stroller");
+  } else if (b === 3) {
+    adult.push("<b>Under the costume:</b> long-sleeve top", "<b>Over:</b> a light jacket or sweater");
+    kids.push("<b>Under the costume:</b> long-sleeve shirt", "<b>Over:</b> a hoodie or light jacket for later", "<b>Shoes:</b> comfortable sneakers");
+    baby.push("<b>Under:</b> long-sleeve bodysuit + pants", "Costume + a light hat; blanket in the stroller");
+  } else {
+    adult.push("Costume as is — maybe a light layer for later");
+    kids.push("Costume as is — avoid heavy masks if it's warm; bring water", "<b>Shoes:</b> comfortable sneakers");
+    baby.push("Light costume over a short-sleeve bodysuit", "Watch for overheating in fleece costumes");
+  }
+  if (wet) {
+    adult.push("☔ Clear poncho or umbrella (shows off the costume)");
+    kids.push("☔ Clear rain poncho over the costume + rain boots");
+    baby.push("☔ Stroller rain cover");
+  }
+  if (dark) kids.push("🔦 Dark out — glow sticks, reflective tape on the costume or bag, and a flashlight");
+  return { adult, kids, baby };
+}
+
+function eventWindow(d, date, from, to) {
+  const idx = [];
+  for (let h = from; h <= to; h++) {
+    const i = d.hourly.time.indexOf(`${date}T${pad(h)}:00`);
+    if (i >= 0) idx.push(i);
+  }
+  return idx;
+}
+
+function renderEvents(d) {
+  const first = d.daily.time[0], last = d.daily.time[d.daily.time.length - 1];
+  const y = +first.slice(0, 4);
+  const all = [];
+  for (const yr of [y, y + 1]) for (const e of EVENTS) all.push({ ...e, day: ymd(e.date(yr)) });
+  all.sort((a, b) => a.day.localeCompare(b.day));
+  const inRange = all.filter((e) => e.day >= first && e.day <= last);
+  const next = all.find((e) => e.day > last);
+
+  let html = "";
+  for (const e of inRange) {
+    const di = d.daily.time.indexOf(e.day);
+    const dateLabel = parseLocal(e.day + "T12:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+    const sunset = d.daily.sunset[di];
+    const windows = e.windows.map(([label, from, to]) => {
+      const idx = eventWindow(d, e.day, from, to);
+      if (!idx.length) return "";
+      const k = conditions(d, idx);
+      const temps = idx.map((i) => d.hourly.temperature_2m[i]);
+      const wet = k.wet || k.rain >= 50;
+      const dark = `${pad(to)}:00` > sunset.slice(11, 16);
+      const ice = iceRisk(d, idx);
+      const timeLabel = `${hourLabel(`${e.day}T${pad(from)}:00`)}–${hourLabel(`${e.day}T${pad(to)}:00`)}`;
+      const w = wmo(d.hourly.weather_code[idx[0]], d.hourly.is_day[idx[0]]);
+      let chips = [`${w.icon} ${w.text}`, `🌡️ ${bothRange(Math.min(...temps), Math.max(...temps))}`, `Feels like ${bothStr(k.feelsMin)}`, `💧 ${k.rain}% rain`, `💨 ${speed(k.wind)}`]
+        .map((x) => `<span>${x}</span>`).join("");
+      if (dark) chips += `<span class="warn">🌇 Sunset ${clockLabel(sunset)} — dark during this time</span>`;
+      if (ice.cleats) chips += `<span class="warn">${iceLine(ice)}</span>`;
+      let body;
+      if (e.costume) {
+        const t = costumeTips(k, dark, wet);
+        body = `<div class="who">🧑 Adults</div><ul>${ul(t.adult)}</ul><div class="who">🧒 Kids (9)</div><ul>${ul(t.kids)}</ul><div class="who">👶 Baby (1)</div><ul>${ul(t.baby)}</ul>`;
+      } else {
+        body = `<div class="who">🧑 Adults</div><ul>${ul(adultWear(k).filter((x) => !x.startsWith("Big swing")))}</ul><div class="who">🧒 Kids (9)</div><ul>${ul(kidsWear(k))}</ul><div class="who">👶 Baby (1)</div><ul>${ul(babyWear(k).slice(0, -1))}</ul>`;
+      }
+      return `<div class="event-window"><h4>${label} · ${timeLabel}</h4><div class="walk-summary">${chips}</div>${body}</div>`;
+    }).join("");
+    html += `<div class="event"><h3 class="event-title">${e.icon} ${e.name} — ${dateLabel}</h3><div class="event-windows">${windows}</div></div>`;
+  }
+  if (next) {
+    const dateLabel = parseLocal(next.day + "T12:00").toLocaleDateString("en-US", { month: "long", day: "numeric" });
+    const days = Math.round((parseLocal(next.day + "T12:00") - parseLocal(last + "T12:00")) / 86400000);
+    html += `<p class="muted small">Next up: ${next.icon} <b>${next.name}</b> on ${dateLabel} — the forecast and outfit tips will show up here about a week before (in ${days} more day${days === 1 ? "" : "s"}).</p>`;
+  }
+  $("events").innerHTML = html;
 }
 
 // ---------- morning walk 6:30–7:30 ----------
