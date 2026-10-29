@@ -2,6 +2,7 @@
 // Data from Open-Meteo (free, no API key). Values are fetched in metric
 // and converted for display, so switching units needs no new request.
 
+const USER_NAME = "נטלי";
 const HOME = { name: "Cambridge, MA", lat: 42.3736, lon: -71.1097 };
 const REFRESH_MS = 10 * 60 * 1000;
 
@@ -119,6 +120,7 @@ function render() {
   const w = wmo(c.weather_code, c.is_day);
   const uv = d.hourly.uv_index[hi] ?? 0;
 
+  renderGreeting(c);
   $("place").textContent = state.place.name;
   $("now-icon").textContent = w.icon;
   $("now-temp").textContent = tempStr(c.temperature_2m);
@@ -156,6 +158,18 @@ function render() {
   renderSky(c);
   tickClock();
   $("updated").textContent = `Updated ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+}
+
+function renderGreeting(c) {
+  // Greeting follows the local time of the place being shown.
+  const hour = Number(new Date().toLocaleString("en-US", { timeZone: state.data.timezone, hour: "numeric", hourCycle: "h23" }));
+  const [hello, icon] =
+    hour >= 5 && hour < 12 ? ["בוקר טוב", "☀️"] :
+    hour >= 12 && hour < 17 ? ["צהריים טובים", "🌤️"] :
+    hour >= 17 && hour < 22 ? ["ערב טוב", "🌆"] : ["לילה טוב", "🌙"];
+  const f = Math.round(c.temperature_2m * 9 / 5 + 32);
+  const cel = Math.round(c.temperature_2m);
+  $("greeting").innerHTML = `${hello} ${USER_NAME}! ${icon}<span class="both">עכשיו <bdi>${f}°F</bdi> שזה <bdi>${cel}°C</bdi></span>`;
 }
 
 function compassDir(deg) {
