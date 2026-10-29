@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cambridge Weather</title>
+  <meta name="description" content="Live weather for Cambridge, Massachusetts — forecast, air quality, sun, moon and more.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛅</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="sky" class="sky"></div>
+  <div id="particles" class="particles" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">⛅ <span>SkyCast</span></div>
+    <form id="search-form" class="search" autocomplete="off">
+      <input id="search-input" type="search" placeholder="Search a city…" aria-label="Search a city">
+      <ul id="search-results" class="search-results" hidden></ul>
+    </form>
+    <div class="controls">
+      <button id="locate-btn" class="chip" title="Use my location">📍</button>
+      <button id="home-btn" class="chip" title="Back to Cambridge, MA">🏠</button>
+      <button id="unit-btn" class="chip" title="Switch °F / °C">°F</button>
+      <button id="theme-btn" class="chip" title="Light / dark">🌓</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero card glass">
+      <div class="hero-left">
+        <h1 id="place">Cambridge, MA</h1>
+        <p id="local-time" class="muted"></p>
+        <div class="now">
+          <span id="now-icon" class="now-icon">⏳</span>
+          <span id="now-temp" class="now-temp">--°</span>
+        </div>
+        <p id="now-desc" class="now-desc">Loading…</p>
+        <p id="now-range" class="muted"></p>
+      </div>
+      <div class="hero-right">
+        <div class="tip" id="wear-tip"></div>
+        <div class="tip" id="fun-tip"></div>
+      </div>
+    </section>
+
+    <section id="alerts" class="alerts"></section>
+
+    <section class="grid stats">
+      <div class="card glass stat"><h3>Feels like</h3><p id="s-feels">--</p></div>
+      <div class="card glass stat"><h3>Humidity</h3><p id="s-hum">--</p><div class="bar"><span id="s-hum-bar"></span></div></div>
+      <div class="card glass stat wind">
+        <h3>Wind</h3>
+        <div class="compass"><span id="s-wind-arrow" class="arrow">➤</span></div>
+        <p id="s-wind">--</p><p id="s-gust" class="muted small"></p>
+      </div>
+      <div class="card glass stat"><h3>UV index</h3><p id="s-uv">--</p><div class="bar uv"><span id="s-uv-bar"></span></div><p id="s-uv-txt" class="muted small"></p></div>
+      <div class="card glass stat"><h3>Air quality</h3><p id="s-aqi">--</p><p id="s-aqi-txt" class="muted small"></p></div>
+      <div class="card glass stat"><h3>Pressure</h3><p id="s-press">--</p><p class="muted small" id="s-cloud"></p></div>
+    </section>
+
+    <section class="card glass">
+      <div class="section-head">
+        <h2>Next 24 hours</h2>
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-metric="temp">Temp</button>
+          <button class="tab" data-metric="rain">Rain %</button>
+          <button class="tab" data-metric="wind">Wind</button>
+        </div>
+      </div>
+      <div id="chart" class="chart"></div>
+      <div id="hourly" class="hourly"></div>
+    </section>
+
+    <section class="grid two">
+      <div class="card glass">
+        <h2>7-day forecast</h2>
+        <ul id="daily" class="daily"></ul>
+      </div>
+      <div class="card glass">
+        <h2>Sun &amp; Moon</h2>
+        <svg id="sun-arc" viewBox="0 0 300 140" class="sun-arc" aria-label="Sun position"></svg>
+        <div class="sun-times">
+          <div>🌅 <span id="sunrise">--</span></div>
+          <div>☀️ <span id="daylength">--</span></div>
+          <div>🌇 <span id="sunset">--</span></div>
+        </div>
+        <div class="moon">
+          <span id="moon-icon" class="moon-icon">🌑</span>
+          <div><strong id="moon-name">--</strong><p class="muted small" id="moon-illum"></p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card glass">
+      <h2>Cambridge activity planner</h2>
+      <p class="muted small">How good is right now for…</p>
+      <div id="activities" class="activities"></div>
+    </section>
+  </main>
+
+  <footer class="footer muted small">
+    <span id="updated"></span> · Data: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> · ISM6427
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
